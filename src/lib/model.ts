@@ -35,7 +35,15 @@ const http = z.object({
   url: z
     .string()
     .url()
-    .refine((s) => /^https?:\/\//.test(s), "فقط HTTP و HTTPS"),
+    .refine((s) => /^https?:\/\//.test(s), "فقط HTTP و HTTPS")
+    .refine((s) => {
+      try {
+        const url = new URL(s);
+        return !url.username && !url.password;
+      } catch {
+        return false;
+      }
+    }, "نام کاربری و رمز عبور را در آدرس API وارد نکن"),
   method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
   transport: z.enum(["live", "fixture"]),
   query: z.record(z.string(), z.string()),

@@ -183,10 +183,14 @@ export async function flushSave() {
           : {}),
       }));
     } catch (e) {
-      useApp.setState({
-        saveState: "error",
-        saveError: e instanceof Error ? e.message : "ذخیره انجام نشد.",
-      });
+      useApp.setState((state) =>
+        state.revision === revision && state.workflow?.id === w.id
+          ? {
+              saveState: "error",
+              saveError: e instanceof Error ? e.message : "ذخیره انجام نشد.",
+            }
+          : {},
+      );
     }
   });
   await saveQueue;
@@ -292,6 +296,12 @@ export async function execute(step = false, resume?: Run, unsafe = false) {
       await engine.resume(resume, step, unsafe);
     } else if (w) {
       await flushSave();
+      const saved = useApp.getState();
+      if (saved.saveState !== "saved" || saved.workflow?.id !== w.id)
+        throw new Error(
+          saved.saveError ??
+            "گردش‌کار ذخیره نشد؛ پیش از اجرا ذخیره را دوباره امتحان کن.",
+        );
       await engine.start(w, step);
     }
   } catch (e) {

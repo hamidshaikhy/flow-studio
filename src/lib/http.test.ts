@@ -95,6 +95,45 @@ describe("HTTP adapter", () => {
       httpAdapter(c, null, new AbortController().signal),
     ).rejects.toMatchObject({ code: "CONTENT_TYPE" });
   });
+  it("stops reading a response once it exceeds the byte limit", async () => {
+    let cancelled = false;
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.enqueue(new Uint8Array(1_000_001));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      }),
+      { headers: { "content-type": "application/json" } },
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => response),
+    );
+    await expect(
+      httpAdapter(c, null, new AbortController().signal),
+    ).rejects.toMatchObject({ code: "SIZE" });
+    expect(cancelled).toBe(true);
+  });
+  it("rejects oversized content before opening the response stream", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("[]", {
+            headers: {
+              "content-length": "2000001",
+              "content-type": "application/json",
+            },
+          }),
+      ),
+    );
+    await expect(
+      httpAdapter(c, null, new AbortController().signal),
+    ).rejects.toMatchObject({ code: "SIZE" });
+  });
   it("reports unknown network causes without asserting CORS", async () => {
     vi.stubGlobal(
       "fetch",

@@ -16,8 +16,8 @@
     "test:watch": "vitest",
     "test:e2e": "npm run build && playwright test",
     "capture:screenshots": "node scripts/capture-readme.mjs",
-    "format": "prettier --write src tests docs scripts .github *.json *.ts *.js *.md *.html",
-    "format:check": "prettier --check src tests docs scripts .github *.json *.ts *.js *.md *.html",
+    "format": "prettier --write src tests docs scripts *.json *.ts *.js *.md *.html",
+    "format:check": "prettier --check src tests docs scripts *.json *.ts *.js *.md *.html",
     "test:live": "npm run build && playwright test --config=playwright.live.config.ts"
   },
   "dependencies": {

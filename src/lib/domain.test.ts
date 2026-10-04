@@ -153,5 +153,30 @@ describe("schema and import", () => {
         ],
       }).success,
     ).toBe(false);
+    expect(
+      workflowSchema.safeParse({
+        ...templates[0],
+        nodes: [
+          {
+            ...templates[0].nodes[1],
+            config: {
+              ...defaultConfig("http"),
+              url: "https://user:password@example.com/data",
+            },
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      workflowSchema.safeParse({
+        ...templates[0],
+        nodes: [
+          {
+            ...templates[0].nodes[1],
+            config: { ...defaultConfig("http"), url: "not a url" },
+          },
+        ],
+      }).success,
+    ).toBe(false);
   });
 });

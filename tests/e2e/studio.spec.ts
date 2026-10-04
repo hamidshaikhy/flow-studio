@@ -202,9 +202,23 @@ test("cancel aborts a slow run and late responses cannot overwrite it", async ({
   page,
 }) => {
   await ready(page);
+  let releaseResponse!: () => void;
+  let requestStarted!: () => void;
+  let responseSettled!: () => void;
+  const responseHeld = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
+  const requestSeen = new Promise<void>((resolve) => {
+    requestStarted = resolve;
+  });
+  const responseDone = new Promise<void>((resolve) => {
+    responseSettled = resolve;
+  });
   await page.route("https://jsonplaceholder.typicode.com/**", async (r) => {
-    await new Promise((resolve) => setTimeout(resolve, 900));
+    requestStarted();
+    await responseHeld;
     await r.fulfill({ json: posts }).catch(() => {});
+    responseSettled();
   });
   await node(page, "دریافت پست‌ها");
   await page.getByRole("button", { name: "API زنده", exact: true }).click();
@@ -212,9 +226,11 @@ test("cancel aborts a slow run and late responses cannot overwrite it", async ({
   await expect(page.locator(".flow-card.kind-http")).toHaveClass(
     /node-running/,
   );
+  await requestSeen;
   await page.getByRole("button", { name: "لغو اجرا", exact: true }).click();
   await expect(page.locator(".console-header .status")).toHaveText("لغوشده");
-  await page.waitForTimeout(1100);
+  releaseResponse();
+  await responseDone;
   await expect(page.locator(".console-header .status")).toHaveText("لغوشده");
   await expect(page.locator(".flow-card.kind-http")).toHaveClass(
     /node-cancelled/,

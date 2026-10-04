@@ -60,6 +60,44 @@ export function mappedRequest(c: HttpConfig, input: Json) {
   for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
   return { url: url.href, body };
 }
+const maxResponseBytes = 2_000_000;
+function responseTooLarge(): FlowError {
+  return new FlowError(
+    "SIZE",
+    "پاسخ بیشتر از ۲ مگابایت است.",
+    "از پارامترهای محدودسازی API استفاده کن.",
+  );
+}
+async function readResponse(response: Response): Promise<string> {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (declaredLength > maxResponseBytes) throw responseTooLarge();
+  if (!response.body) {
+    const text = await response.text();
+    if (new TextEncoder().encode(text).byteLength > maxResponseBytes)
+      throw responseTooLarge();
+    return text;
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const parts: string[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxResponseBytes) {
+        await reader.cancel();
+        throw responseTooLarge();
+      }
+      parts.push(decoder.decode(value, { stream: true }));
+    }
+    parts.push(decoder.decode());
+    return parts.join("");
+  } finally {
+    reader.releaseLock();
+  }
+}
 export const httpAdapter: HttpAdapter = async (c, input, signal) => {
   const req = mappedRequest(c, input);
   if (c.transport === "fixture") {
@@ -143,13 +181,7 @@ export const httpAdapter: HttpAdapter = async (c, input, signal) => {
         "سرویس پاسخ را با قالب JSON نفرستاده است.",
         "این بلوک برای APIهای JSON طراحی شده؛ آدرس و نوع پاسخ را بررسی کن.",
       );
-    const text = await response.text();
-    if (text.length > 2_000_000)
-      throw new FlowError(
-        "SIZE",
-        "پاسخ بیشتر از ۲ مگابایت است.",
-        "از پارامترهای محدودسازی API استفاده کن.",
-      );
+    const text = await readResponse(response);
     let parsed: unknown;
     try {
       parsed = JSON.parse(text);
